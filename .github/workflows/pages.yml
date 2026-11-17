@@ -39,6 +39,8 @@ jobs:
               text=text.replace("</body>",'<script src="library-upgrade-v2.js" defer></script></body>')
           p.write_text(text,encoding="utf-8")
           PY
+      - name: Vincular acervo ao Supabase com login protegido
+        run: python3 cloud-build.py
       - name: Enviar site
         uses: actions/upload-pages-artifact@v4
         with:
