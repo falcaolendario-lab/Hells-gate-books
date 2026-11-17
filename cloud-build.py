@@ -15,8 +15,12 @@ once("<script>(() => {",
 <script src="library-cloud.js"></script>
 <script>(() => {''')
 
-once("const validImage = s => typeof s==='string' && (/^assets\\\\/[\\\\w.-]+\\\\.(webp|jpg|jpeg|png|gif)$/i.test(s) || /^data:image\\\\/(webp|png|jpeg|gif);base64,[a-z0-9+/=]+$/i.test(s));",
-     "const validImage = s => typeof s==='string' && (/^assets\\\\/[\\\\w.-]+\\\\.(webp|jpg|jpeg|png|gif)$/i.test(s) || /^data:image\\\\/(webp|png|jpeg|gif);base64,[a-z0-9+/=]+$/i.test(s) || s.startsWith('https://tcwtcyikqxtfnlucyqtf.supabase.co/storage/v1/object/public/hells-books/'));")
+start=s.index("const validImage = s =>")
+assert start>=0
+end=s.index("\n",start)
+line=s[start:end]
+assert line.endswith("));"),line[-50:]
+s=s[:start]+line[:-2]+" || s.startsWith('https://tcwtcyikqxtfnlucyqtf.supabase.co/storage/v1/object/public/hells-books/'));" + s[end:]
 
 once("async function readStored() {\n  db=await getDatabase();",
      "async function readStored() {\n  const online=await window.HGCloud.load(); if(online) return online;\n  db=await getDatabase();")
