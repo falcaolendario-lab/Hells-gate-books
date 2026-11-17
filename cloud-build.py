@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+"""Build-time patches only. Leaves the original 2.8MB HTML and images intact."""
+from pathlib import Path
+p=Path('index.html')
+s=p.read_text(encoding='utf8')
+
+def once(old,new):
+    global s
+    n=s.count(old)
+    if n != 1: raise RuntimeError(f"Expected one patch location; got {n}: {old[:80]}")
+    s=s.replace(old,new,1)
+
+once("<script>(() => {",
+'''<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.75.0/dist/umd/supabase.min.js"></script>
+<script src="library-cloud.js"></script>
+<script>(() => {''')
+
+once("const validImage = s => typeof s==='string' && (/^assets\\\\/[\\\\w.-]+\\\\.(webp|jpg|jpeg|png|gif)$/i.test(s) || /^data:image\\\\/(webp|png|jpeg|gif);base64,[a-z0-9+/=]+$/i.test(s));",
+     "const validImage = s => typeof s==='string' && (/^assets\\\\/[\\\\w.-]+\\\\.(webp|jpg|jpeg|png|gif)$/i.test(s) || /^data:image\\\\/(webp|png|jpeg|gif);base64,[a-z0-9+/=]+$/i.test(s) || s.startsWith('https://tcwtcyikqxtfnlucyqtf.supabase.co/storage/v1/object/public/hells-books/'));")
+
+once("async function readStored() {\n  db=await getDatabase();",
+     "async function readStored() {\n  const online=await window.HGCloud.load(); if(online) return online;\n  db=await getDatabase();")
+
+once("async function persist(){\n  if(db)",
+     """async function persist(){
+  try { state = await window.HGCloud.save(state); } catch(e) {
+    console.error('Falha no salvamento online',e);
+    toast('Não foi possível publicar: '+(e.message || 'falha de rede')+'. Faça um backup.');
+    return false;
+  }
+  if(db)""")
+
+once("function showLogin(){if(sessionStorage.getItem('luci_admin_unlocked')==='1'){openAdmin();return;}",
+     "function showLogin(){if(sessionStorage.getItem('luci_admin_unlocked')==='1' && window.HGCloud.isAuthorized()){openAdmin();return;}")
+
+once("function openAdmin(){overlay('loginOverlay',false);",
+     "function openAdmin(){if(!window.HGCloud.isAuthorized()){toast('Entre com a conta do Arquivista no Supabase.');return;}overlay('loginOverlay',false);")
+
+once("function loginSubmit(e){e.preventDefault();if($('#adminPassword').value==='666'){sessionStorage.setItem('luci_admin_unlocked','1');openAdmin();toast('Bem-vindo à Sala do Arquivista.');}else{$('#loginError').textContent='Senha incorreta. Tente novamente.';}}",
+     """async function loginSubmit(e){e.preventDefault();
+       if($('#adminPassword').value!=='666'){$('#loginError').textContent='PIN incorreto.';return;}
+       $('#loginError').textContent='Conectando à sua conta segura…';
+       try {
+         if(await window.HGCloud.login()){sessionStorage.setItem('luci_admin_unlocked','1');openAdmin();toast('Sala do Arquivista autenticada na nuvem.');}
+         else $('#loginError').textContent='Confirme o e-mail ou tente novamente.';
+       }catch(err){$('#loginError').textContent=err.message||'Falha na autenticação.';}
+     }""")
+
+once("$('#adminLogout').onclick=()=>{sessionStorage.removeItem('luci_admin_unlocked');closeAdmin();toast('Edição bloqueada neste navegador.');};",
+     "$('#adminLogout').onclick=()=>{sessionStorage.removeItem('luci_admin_unlocked');window.HGCloud.logout();closeAdmin();toast('Sessão encerrada.');};")
+
+once("toast(success?'Alterações salvas neste dispositivo.':'Falha ao salvar. Faça um backup.');",
+     "toast(success?'Alterações publicadas para todos os leitores.':'Falha ao publicar. Faça um backup.');")
+
+once("● Salvo neste dispositivo","● Sincronização com Supabase")
+p.write_text(s,encoding='utf8')
+print('Hells Gate Books cloud build applied')
