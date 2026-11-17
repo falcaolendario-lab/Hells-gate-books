@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Importador de páginas · Hells Gate Books</title>
+<meta name="robots" content="noindex,nofollow">
+<style>
+:root{color-scheme:dark;--bg:#0c1013;--panel:#151b20;--ink:#f3eae5;--red:#e42649;--muted:#b9aeb1;--border:#4b3841}*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(ellipse at 90% -20%,#4c1626,transparent 50%),var(--bg);color:var(--ink);font:16px/1.55 system-ui,Arial,sans-serif;min-height:100vh}
+main{max-width:800px;margin:auto;padding:26px 18px 60px}.mast{display:flex;align-items:center;gap:14px;font-size:.84rem;font-weight:750;letter-spacing:.16em}.mast b{display:block;font-size:1.1rem;letter-spacing:0}.mast small{color:var(--muted);font-weight:400}.mark{font-size:1.6rem;color:var(--red)}h1{font:800 clamp(2rem,6vw,3.5rem)/1.12 system-ui;margin:32px 0 6px;letter-spacing:-.035em}h1 em{font-style:normal;color:var(--red)}h2{font-size:1.1rem;margin:0 0 14px}p{color:var(--muted)}.intro{margin:0 0 26px}
+.panel{background:#12171bed;border:1px solid var(--border);padding:24px;border-radius:12px;margin:18px 0;box-shadow:0 16px 40px #0003}.step{color:var(--red);letter-spacing:.13em;font-size:.75rem;font-weight:850;margin-bottom:7px}
+label{display:block;font-size:.84rem;font-weight:700;margin:12px 0 6px}input{width:100%;font:inherit;color:var(--ink);border:1px solid #5d4650;background:#090c0f;border-radius:7px;padding:13px}input[type=file]{background:#231a20;border:1px dashed var(--red);cursor:pointer}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}button,a.btn{border:1px solid var(--red);background:var(--red);color:white;padding:12px 17px;border-radius:7px;font:700 0.9rem system-ui;cursor:pointer;text-decoration:none}button.alt,a.btn.alt{background:transparent;border-color:#7a5760;color:#f7e7e9}button:disabled{opacity:.5;cursor:wait}
+.list{padding:0;list-style:none;margin:16px 0 0}.list li{padding:11px 0;border-top:1px solid #40313a;display:flex;justify-content:space-between;gap:12px}.list small{color:var(--muted)}code{color:#f3b6bd;overflow-wrap:anywhere}
+.notice{padding:14px;border:1px solid #6a4d56;border-left:4px solid var(--red);border-radius:5px;background:#241820;color:#f1dfe1;margin:18px 0}#status{white-space:pre-wrap;word-break:break-word;min-height:22px}#status.ok{color:#9be0a9}#status.bad{color:#ff9b9b}footer{margin-top:24px;font-size:.85rem;color:var(--muted)}a{color:#ffb6c4}
+@media(max-width:500px){.panel{padding:18px}.actions>*{flex:1}}
+</style></head><body>
+<main>
+  <div class="mast"><span class="mark">✦</span><div><b>HELLS GATE BOOKS</b><small>GARDENS · Sala do Arquivista</small></div></div>
+  <h1>Importar as <em>cinco páginas</em></h1>
+  <p class="intro">Inserção automática das páginas 035–039 em <strong>GARDENS — Manual Básico</strong>, preservando as demais páginas do acervo.</p>
+  <div class="panel">
+    <div class="step">01 / IDENTIFICAÇÃO</div><h2>Entrar como arquivista</h2>
+    <p>É necessário entrar com a conta autorizada do Supabase. O PIN não substitui o login seguro.</p>
+    <label for="pin">PIN da Sala do Arquivista</label><input id="pin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN">
+    <label for="email">E-mail</label><input id="email" type="email" autocomplete="username" placeholder="seu e-mail cadastrado">
+    <label for="pass">Senha de login no Supabase</label><input id="pass" type="password" autocomplete="current-password" placeholder="Sua senha de login">
+    <div class="actions"><button id="login">Entrar</button><button id="signup" class="alt">Criar conta com este e-mail</button></div>
+    <div id="authStatus" class="notice" role="status">Aguardando autenticação.</div>
+  </div>
+  <div class="panel">
+    <div class="step">02 / SELECIONAR AS ARTES</div><h2>Pacote de páginas 035 a 039</h2>
+    <p>Escolha o arquivo ZIP com as cinco páginas numeradas. Também é possível selecionar as cinco imagens .webp separadamente.</p>
+    <label for="zip">Arquivo ZIP</label><input id="zip" type="file" accept=".zip,application/zip">
+    <label for="images">Ou imagens individuais (opcional)</label><input id="images" type="file" accept="image/webp,image/png,image/jpeg" multiple>
+    <ul class="list" id="list"><li><span>Nenhum pacote selecionado.</span></li></ul>
+  </div>
+  <div class="panel">
+    <div class="step">03 / PUBLICAÇÃO</div><h2>Adicionar ao livro na ordem correta</h2>
+    <p>O importador faz o upload das imagens, cria as cinco páginas no volume existente e verifica o resultado. Se já houver uma página com o mesmo identificador, ela será atualizada sem duplicar.</p>
+    <div class="notice"><strong>Ordem:</strong> 035 História e Mentalidade · 036 Origem e Contexto · 037 Motivações, Laços e Feridas · 038 Contradições, Falhas e Limites · 039 Evolução e Presença em Cena.</div>
+    <div class="actions"><button id="publish" disabled>Publicar 5 páginas no livro</button><a class="btn alt" href="./">Voltar à biblioteca</a></div>
+    <p id="status" role="status" aria-live="polite"></p>
+  </div>
+  <footer>As imagens são enviadas diretamente do seu navegador para o Supabase, usando sua sessão autenticada. Nenhum e-mail ou senha é registrado neste arquivo.</footer>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.75.0/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+const URL="https://tcwtcyikqxtfnlucyqtf.supabase.co";
+const KEY="sb_publishable_zyDMvkYF_84v5Ywu6JoF1g_3aThL85N";
+const sb=window.supabase.createClient(URL,KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});
+const names={
+  "035":"História e Mentalidade",
+  "036":"Origem e Contexto",
+  "037":"Motivações, Laços e Feridas",
+  "038":"Contradições, Falhas e Limites",
+  "039":"Evolução e Presença em Cena"
+};
+let allowed=false,busy=false,files=new Map();
+function state(msg,bad=false){$("status").textContent=msg;$("status").className=bad?"bad":"ok";}
+function authState(msg){$("authStatus").textContent=msg;}
+function button(){ $("publish").disabled=!allowed||files.size!==5||busy; }
+function currentPin(){ return $("pin").value==="666"; }
+async function verify(){
+  const u=await sb.auth.getUser();
+  if(u.error||!u.data.user){allowed=false;button();return false;}
+  const r=await sb.rpc("hells_can_edit");
+  allowed=!r.error&&r.data===true;
+  button();return allowed;
+}
+async function login(){
+  if(!currentPin()){authState("PIN incorreto.");return;}
+  $("login").disabled=true;
+  try {
+    let ok=await verify();
+    if(!ok){
+      const email=$("email").value.trim();
+      const password=$("pass").value;
+      if(!email||!password){authState("Informe seu e-mail e a senha de login no Supabase.");return;}
+      const r=await sb.auth.signInWithPassword({email,password});
+      if(r.error)throw r.error;
+      ok=await verify();
+    }
+    authState(ok?"Acesso confirmado. Você pode publicar as páginas.":"Esta conta não está autorizada a editar o acervo.");
+  } catch(e){allowed=false;button();authState("Falha no login: "+e.message);}
+  finally{$("login").disabled=false;}
+}
+async function signup(){
+  if(!currentPin()){authState("Digite o PIN antes de cadastrar.");return;}
+  const email=$("email").value.trim(),password=$("pass").value;
+  if(!email||password.length<6){authState("Informe um e-mail válido e senha com pelo menos 6 caracteres.");return;}
+  $("signup").disabled=true;
+  try{
+    const r=await sb.auth.signUp({email,password,options:{emailRedirectTo:"https://falcaolendario-lab.github.io/Hells-gate-books/importar-paginas.html"}});
+    if(r.error)throw r.error;
+    authState("Cadastro solicitado. Verifique seu e-mail e confirme a conta. Depois volte e clique em Entrar. Apenas o e-mail autorizado pode publicar.");
+  }catch(e){authState("Não foi possível cadastrar: "+e.message);}
+  finally{$("signup").disabled=false;}
+}
+function numberOf(filename){
+  const clean=filename.split("/").pop();
+  const m=/^0?(35|36|37|38|39)(?:\D|$)/.exec(clean);
+  return m?m[1]:null;
+}
+async function readFiles(){
+  files.clear();
+  try{
+    const zipFile=$("zip").files[0];
+    if(zipFile){
+      if(zipFile.size>50*1024*1024)throw new Error("ZIP acima de 50 MB.");
+      if(!window.JSZip)throw new Error("Leitor ZIP indisponível. Verifique sua internet.");
+      const zip=await window.JSZip.loadAsync(zipFile,{checkCRC32:true});
+      const entries=Object.values(zip.files).filter(e=>!e.dir);
+      if(entries.length>25)throw new Error("Este ZIP contém muitos arquivos.");
+      for(const entry of entries){
+        const n=numberOf(entry.name);
+        if(!n)continue;
+        if(!/\.(webp|png|jpg|jpeg)$/i.test(entry.name))continue;
+        if(files.has(n))throw new Error("Página duplicada: "+n);
+        const blob=await entry.async("blob");
+        if(blob.size>50*1024*1024)throw new Error("Imagem acima de 50 MB: "+n);
+        const mime=/\.webp$/i.test(entry.name)?"image/webp":/\.png$/i.test(entry.name)?"image/png":"image/jpeg";
+        files.set(n,new File([blob],entry.name.split("/").pop(),{type:mime}));
+      }
+    }else{
+      for(const f of Array.from($("images").files)){
+        const n=numberOf(f.name);
+        if(!n)throw new Error("Nome inválido: "+f.name+". Comece com 035, 036, 037, 038 ou 039.");
+        if(files.has(n))throw new Error("Página duplicada: "+n);
+        files.set(n,f);
+      }
+    }
+    $("list").innerHTML="";
+    for(const [n,title] of Object.entries(names)){
+      const li=document.createElement("li");
+      li.innerHTML="<span>"+n+" — "+title+"</span><small>"+(files.has(n)?"Pronta":"Faltando")+"</small>";
+      $("list").appendChild(li);
+    }
+    if(files.size!==5)state("Selecione as cinco páginas numeradas para continuar.",true);
+    else state("As cinco imagens foram reconhecidas. Faça login para publicar.");
+  }catch(e){state(e.message,true);files.clear();}
+  button();
+}
+async function publish(){
+  if(busy)return;
+  if(!currentPin()||!(await verify())){state("Entre com a conta autorizada antes de publicar.",true);return;}
+  if(files.size!==5){state("Estão faltando páginas no pacote.",true);return;}
+  busy=true;button();
+  try{
+    state("Consultando o volume original...");
+    const read=await sb.from("hells_library").select("content").eq("id",1).single();
+    if(read.error)throw read.error;
+    const catalog=read.data.content;
+    if(!Array.isArray(catalog.books)||!catalog.books.some(b=>b.id==="gardens-manual"))throw new Error("O Manual Básico não foi encontrado.");
+    if(!Array.isArray(catalog.pages))throw new Error("O catálogo de páginas está inválido.");
+    const newPages=[];
+    for(const n of ["035","036","037","038","039"]){
+      const file=files.get(n);
+      const ext=(file.type==="image/png")?"png":file.type==="image/jpeg"?"jpg":"webp";
+      const path="gardens/essencia/"+n+"-"+Date.now()+"-"+crypto.randomUUID().slice(0,8)+"."+ext;
+      state("Enviando a página "+n+" de 039...");
+      const up=await sb.storage.from("hells-books").upload(path,file,{contentType:file.type||"image/webp",upsert:false});
+      if(up.error)throw up.error;
+      const img=sb.storage.from("hells-books").getPublicUrl(path).data.publicUrl;
+      newPages.push({id:"gardens-essencia-"+n,bookId:"gardens-manual",title:"Página "+n+" — "+names[n],section:"2.1 — Criando a Essência",kind:"image",image:img,body:"",order:0});
+    }
+    const ids=new Set(newPages.map(p=>p.id));
+    const others=catalog.pages.filter(p=>p.bookId!=="gardens-manual");
+    const existing=catalog.pages.filter(p=>p.bookId==="gardens-manual"&&!ids.has(p.id)).sort((a,b)=>(+a.order||0)-(+b.order||0));
+    const essence034=existing.findIndex(p=>p.id==="gardens-essencia-034"||(/ess[eê]ncia/i.test(p.title||"")&&/034/.test(p.title||"")));
+    const opening=existing.findIndex(p=>p.id==="gardens-capitulo-02-abertura");
+    const insertionIndex=essence034>=0?essence034+1:opening>=0?opening+1:existing.length;
+    const ordered=existing.slice(0,insertionIndex).concat(newPages,existing.slice(insertionIndex));
+    ordered.forEach((p,i)=>{p.order=i;});
+    catalog.pages=others.concat(ordered);
+    state("Gravando as cinco páginas no catálogo público...");
+    const save=await sb.from("hells_library").update({content:catalog,updated_at:new Date().toISOString()}).eq("id",1).select("id");
+    if(save.error)throw save.error;
+    if(!save.data||save.data.length!==1)throw new Error("O Supabase não confirmou a atualização do livro.");
+    const again=await sb.from("hells_library").select("content").eq("id",1).single();
+    if(again.error)throw again.error;
+    const seen=again.data.content.pages.filter(p=>ids.has(p.id));
+    if(seen.length!==5||seen.some(p=>!p.image||!p.image.startsWith("https://tcwtcyikqxtfnlucyqtf.supabase.co/")))throw new Error("A verificação final das páginas falhou.");
+    state("SUCESSO! As páginas 035–039 estão publicadas no Manual Básico, na ordem correta.");
+    authState("Publicação concluída. Abra o leitor para conferir.");
+    $("list").insertAdjacentHTML("beforeend",'<li><a href="./#acervo">Abrir o livro no acervo</a><small>Concluído</small></li>');
+  }catch(e){state("Não foi possível concluir: "+(e.message||"Erro inesperado")+". Não alteramos a lista de páginas antes da conclusão.",true);}
+  finally{busy=false;button();}
+}
+$("login").onclick=login;$("signup").onclick=signup;$("publish").onclick=publish;
+$("zip").onchange=()=>{if($("zip").files.length)$("images").value="";readFiles();};
+$("images").onchange=()=>{if($("images").files.length)$("zip").value="";readFiles();};
+verify().then(ok=>{if(ok)authState("Conta autorizada já conectada. Informe o PIN e selecione o pacote.");}).catch(()=>{});
+})();
+</script></body></html>
