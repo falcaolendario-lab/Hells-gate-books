@@ -121,6 +121,36 @@
     notify('Acervo publicado para todos os visitantes');
     return resolved;
   }
+  // Keep large PDF imports memory-safe: upload each compressed page immediately.
+  // These files use the same authenticated RLS rules as the regular library editor.
+  const pendingPdfUploads = new Map();
+  async function uploadPdfPage(blob, importId, number) {
+    if(!authorized && !(await verify())) throw new Error('Entre com a conta autorizada do Arquivista para importar PDFs.');
+    if(!(blob instanceof Blob) || blob.type !== 'image/webp') throw new Error('Imagem da página inválida.');
+    if(!/^pdf-livro-[0-9]+-[a-z0-9]+$/.test(importId) || !Number.isInteger(number) || number < 1 || number > 2000)
+      throw new Error('Identificação da página inválida.');
+    const name = 'library/imported/' + importId + '/page-' + String(number).padStart(4,'0') + '.webp';
+    const s = api();
+    const {error} = await s.storage.from(BUCKET).upload(name,blob,{
+      contentType:'image/webp',cacheControl:'3600',upsert:false
+    });
+    if(error) throw new Error('Não foi possível enviar a página '+number+': '+error.message);
+    if(!pendingPdfUploads.has(importId)) pendingPdfUploads.set(importId,[]);
+    pendingPdfUploads.get(importId).push(name);
+    return s.storage.from(BUCKET).getPublicUrl(name).data.publicUrl;
+  }
+  async function cleanupPdfImport(importId) {
+    const files = pendingPdfUploads.get(importId) || [];
+    if(!files.length) return;
+    if(!authorized && !(await verify())) return;
+    const s = api();
+    for(let i=0;i<files.length;i+=100) {
+      const {error}=await s.storage.from(BUCKET).remove(files.slice(i,i+100));
+      if(error) throw error;
+    }
+    pendingPdfUploads.delete(importId);
+  }
+  function completePdfImport(importId) {pendingPdfUploads.delete(importId);}
   async function logout(){if(client)await client.auth.signOut(); authorized=false;notify('Modo de leitura');}
-  window.HGCloud={load,login,save,logout,isAuthorized,verify};
+  window.HGCloud={load,login,save,logout,isAuthorized,verify,uploadPdfPage,cleanupPdfImport,completePdfImport};
 })();
