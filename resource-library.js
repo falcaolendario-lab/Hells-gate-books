@@ -210,7 +210,7 @@
     const panel=root.querySelector('#hgr-dialog-panel');
     const fieldsHTML=fields.map(f=>{
       const label='<label>'+esc(f.label);
-      if(f.options)return label+'<select name="'+esc(f.name)+'" required>'+f.options.map(opt=>
+      if(f.options)return label+'<select name="'+esc(f.name)+'">'+f.options.map(opt=>
         '<option value="'+esc(opt.value)+'" '+(String(f.value??'')===String(opt.value)?'selected':'')+'>'+
         esc(opt.label)+'</option>').join('')+'</select></label>';
       return label+'<input name="'+esc(f.name)+'" type="text" maxlength="'+(f.max||140)+'" value="'+esc(f.value||'')+'" required /></label>';
@@ -345,6 +345,9 @@
           await db.storage.from(BUCKET).remove([path]).catch(console.warn);
         }else done++;
       }
+    }catch(error){
+      console.error('Falha inesperada no envio',error);
+      errors.push('Falha na conexão: '+(error.message||'erro desconhecido'));
     }finally{
       busy=false;
       root.querySelector('#hgr-progress-fill').style.width='100%';
