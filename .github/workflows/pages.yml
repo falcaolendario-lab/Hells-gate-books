@@ -30,6 +30,7 @@ jobs:
         run: |
           cat .site-upgrade/part*.txt | base64 -d | tar -xJ -C .
           node --check library-upgrade-v2.js
+          node --check library-pdf-large.js
           python3 - <<'PY'
           from pathlib import Path
           p=Path("index.html")
@@ -37,6 +38,8 @@ jobs:
           if "library-upgrade-v2.js" not in text:
               text=text.replace("</head>",'<link rel="stylesheet" href="library-upgrade-v2.css" /></head>')
               text=text.replace("</body>",'<script src="library-upgrade-v2.js" defer></script></body>')
+          if "library-pdf-large.js" not in text:
+              text=text.replace("</body>",'<script src="library-pdf-large.js" defer></script></body>')
           p.write_text(text,encoding="utf-8")
           PY
       - name: Vincular acervo ao Supabase com login protegido
