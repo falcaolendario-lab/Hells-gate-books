@@ -31,7 +31,6 @@ jobs:
           cat .site-upgrade/part*.txt | base64 -d | tar -xJ -C .
           node --check library-upgrade-v2.js
           node --check library-pdf-large.js
-          node --check library-assets.js
           node --check resource-library.js
           python3 - <<'PY'
           from pathlib import Path
@@ -42,8 +41,6 @@ jobs:
               text=text.replace("</body>",'<script src="library-upgrade-v2.js" defer></script></body>')
           if "library-pdf-large.js" not in text:
               text=text.replace("</body>",'<script src="library-pdf-large.js" defer></script></body>')
-          if "library-assets.js" not in text:
-              text=text.replace("</body>",'<script src="library-assets.js" defer></script></body>')
           if "resource-library.js" not in text:
               text=text.replace("</head>",'<link rel="stylesheet" href="resource-library.css" /></head>')
               text=text.replace("</body>",'<script src="resource-library.js" defer></script></body>')
