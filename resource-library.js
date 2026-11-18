@@ -129,6 +129,7 @@
       btn.classList.toggle('active',active);btn.setAttribute('aria-pressed',String(active));
     });
     root.querySelectorAll('.hgr-edit-only').forEach(el=>{el.hidden=!canEdit;});
+    root.querySelectorAll('.hgr-login-only').forEach(el=>{el.hidden=canEdit;});
     root.querySelector('#hgr-role').textContent=canEdit?'Arquivista · edição habilitada':'Leitura pública';
     const query=textSearch.trim().toLocaleLowerCase('pt-BR');
     const listedFolders=query?folders.filter(f=>f.name.toLocaleLowerCase('pt-BR').includes(query)).sort(byName):children(locationId);
@@ -165,7 +166,7 @@
       '<select class="hgr-btn hgr-edit-only" id="hgr-upload-kind" title="Classificar novo arquivo" aria-label="Classificar novo arquivo">'+
       '<option value="token">Token</option><option value="mapa">Mapa</option><option value="imagem">Imagem</option></select>'+
       '<button class="hgr-btn primary hgr-edit-only" type="button" data-hgr="upload">↥ Enviar imagens</button>'+
-      '<button class="hgr-btn subtle hgr-edit-only" type="button" data-hgr="login">Entrar para editar</button>'+
+      '<button class="hgr-btn subtle hgr-login-only" type="button" data-hgr="login">Entrar para editar</button>'+
       '<input class="hgr-search" type="search" id="hgr-search" placeholder="Pesquisar em todas as pastas..." autocomplete="off" aria-label="Buscar recursos" />'+
       '<input id="hgr-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden /></div>'+
       '<div class="hgr-tabs" aria-label="Filtrar recursos">'+
@@ -227,7 +228,7 @@
       form.onsubmit=e=>{
         e.preventDefault();
         const result=Object.fromEntries(new FormData(form).entries());
-        if(Object.values(result).some(v=>!String(v).trim()))return;
+        if(fields.filter(f=>!f.options).some(f=>!String(result[f.name]||'').trim()))return;
         finish(result);
       };
     });
@@ -479,7 +480,7 @@
     if(!opened)return;
     if(e.key==='Escape'){
       e.preventDefault();e.stopImmediatePropagation();
-      if(root.querySelector('#hgr-dialog')&&!root.querySelector('#hgr-dialog').hidden)return;
+      if(root.querySelector('#hgr-dialog')&&!root.querySelector('#hgr-dialog').hidden){root.querySelector('#hgr-cancel')?.click();return;}
       if(selectedPreview)closePreview();
       else close();
     }
