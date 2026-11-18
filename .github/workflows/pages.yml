@@ -33,6 +33,13 @@ jobs:
           node --check library-pdf-large.js
           python3 - <<'PY'
           from pathlib import Path
+          s=Path('library-upgrade-v2.js').read_text()
+          for term in ['hgb-modal', 'hgb-import-form', 'hgb-file', 'hgb-submit', '28 MB', '28*1024', '28 * 1024', '100', 'pdf']:
+              i=s.find(term)
+              print('UI-SEARCH',repr(term),i, repr(s[max(0,i-230):i+330]) if i>=0 else '-')
+          PY
+          python3 - <<'PY'
+          from pathlib import Path
           p=Path("index.html")
           text=p.read_text(encoding="utf-8")
           if "library-upgrade-v2.js" not in text:
