@@ -32,6 +32,7 @@ jobs:
           node --check library-upgrade-v2.js
           node --check library-pdf-large.js
           node --check resource-library.js
+          node --check library-gardens-bulk.js
           python3 - <<'PY'
           from pathlib import Path
           p=Path("index.html")
@@ -44,6 +45,8 @@ jobs:
           if "resource-library.js" not in text:
               text=text.replace("</head>",'<link rel="stylesheet" href="resource-library.css" /></head>')
               text=text.replace("</body>",'<script src="resource-library.js" defer></script></body>')
+          if "library-gardens-bulk.js" not in text:
+              text=text.replace("</body>",'<script src="library-gardens-bulk.js" defer></script></body>')
           p.write_text(text,encoding="utf-8")
           PY
       - name: Vincular acervo ao Supabase com login protegido
