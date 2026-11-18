@@ -3,7 +3,7 @@
    Converte uma pagina por vez e publica imagens no Supabase Storage autorizado. */
 (() => {
   'use strict';
-  const MAX_PDF_BYTES = 250 * 1024 * 1024;
+  const MAX_PDF_BYTES = 600 * 1024 * 1024;
   const MAX_PDF_PAGES = 1000;
   const $ = selector => document.querySelector(selector);
   let working = false;
@@ -33,7 +33,7 @@
     if(!modal) return;
     const help = modal.querySelector('.hgb-help');
     if(help) help.textContent =
-      'Aceita PDFs de até 250 MB e 1.000 páginas. Cada folha é convertida e enviada separadamente ao acervo online. Mantenha esta aba aberta até concluir.';
+      'Aceita PDFs de até 600 MB e 1.000 páginas. Cada folha é convertida e enviada separadamente ao acervo online. Mantenha esta aba aberta até concluir.';
     const security = modal.querySelector('.hgb-security');
     if(security) security.textContent =
       'A importação usa sua conta autorizada do Arquivista. O novo livro só aparece para todos depois que todas as páginas forem salvas.';
@@ -60,7 +60,7 @@
         if(!blob || blob.type !== 'image/webp')
           return reject(new Error('Seu navegador não conseguiu converter a página em WebP.'));
         resolve(blob);
-      }, 'image/webp', 0.78);
+      }, 'image/webp', 0.88);
     });
   }
   async function run() {
@@ -73,11 +73,13 @@
     let importId = null;
     let success = false;
     let doc = null;
+    let loadTask = null;
+    let fileURL = null;
     try {
       if(!file || !/\.pdf$/i.test(file.name)) throw new Error('Selecione um arquivo PDF válido.');
       if(!file.size) throw new Error('O arquivo PDF está vazio.');
       if(file.size > MAX_PDF_BYTES)
-        throw new Error('PDF acima de 250 MB. Para arquivos ainda maiores, divida em volumes.');
+        throw new Error('PDF acima de 600 MB. Para arquivos ainda maiores, divida em volumes.');
       if(!window.HGCloud?.uploadPdfPage || !window.HGCloud?.save)
         throw new Error('O sistema online não está pronto. Atualize a página com Ctrl + F5.');
       progress(0, 'Verificando acesso à biblioteca...');
@@ -96,14 +98,29 @@
       pdfjs.GlobalWorkerOptions.workerSrc =
         'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
       progress(0, 'Abrindo o PDF no navegador...');
-      const loadTask = pdfjs.getDocument({data:new Uint8Array(await file.arrayBuffer())});
-      doc = await loadTask.promise;
+      // Use a Blob URL: don't copy a 350+ MB file into an additional ArrayBuffer.
+      fileURL = URL.createObjectURL(file);
+      loadTask = pdfjs.getDocument({url:fileURL,disableAutoFetch:true,rangeChunkSize:1048576});
+      try { doc = await loadTask.promise; }
+      catch(error) { throw new Error('Este PDF não abriu corretamente. Verifique se o download terminou e se o arquivo não está danificado. '+(error.message||'')); }
       if(doc.numPages > MAX_PDF_PAGES)
         throw new Error('Este PDF tem '+doc.numPages+' páginas; o limite é de 1.000. Divida em volumes.');
       if(!doc.numPages) throw new Error('O PDF não possui páginas.');
-      importId = newId();
-      const pages = [];
+      const checkpointKey = 'hgb-pdf-checkpoint:'+file.name+':'+file.size+':'+file.lastModified+':'+collectionId;
+      let checkpoint = null;
+      try { checkpoint = JSON.parse(localStorage.getItem(checkpointKey) || 'null'); } catch {}
+      if(checkpoint && (!/^pdf-livro-[0-9]+-[a-z0-9]+$/.test(checkpoint.id) ||
+         !Array.isArray(checkpoint.pages) || checkpoint.pages.length > doc.numPages)) checkpoint = null;
+      if(checkpoint && !confirm('Encontramos uma importação parcial deste PDF ('+checkpoint.pages.length+
+        ' de '+doc.numPages+' páginas). Quer continuar de onde parou?')) checkpoint = null;
+      importId = checkpoint?.id || newId();
+      const pages = checkpoint?.pages || [];
+      const alreadyDone = new Set(pages.map(p=>Number(p.order)+1));
       for(let n=1; n<=doc.numPages; n++) {
+        if(alreadyDone.has(n)) {
+          progress(n/doc.numPages, 'Página '+n+' de '+doc.numPages+' já enviada; continuando...');
+          continue;
+        }
         if(cancel) throw new Error('Importação cancelada.');
         progress((n-1)/doc.numPages, 'Convertendo página '+n+' de '+doc.numPages+'...');
         const page = await doc.getPage(n);
@@ -140,6 +157,10 @@
             body:text?'<p>'+escapeHTML(text)+'</p>':'',
             order:n-1
           });
+          // Lightweight checkpoint: URLs only; the 350MB PDF remains on disk.
+          try { localStorage.setItem(checkpointKey,JSON.stringify({id:importId,pages})); } catch(error) {
+            console.warn('Sem espaço para ponto de retomada no navegador',error);
+          }
           progress(n/doc.numPages, 'Página '+n+' de '+doc.numPages+' salva na nuvem.');
           await new Promise(resolve => setTimeout(resolve,0));
         } finally {
@@ -149,7 +170,15 @@
       }
       if(cancel) throw new Error('Importação cancelada.');
       progress(1, 'Registrando o livro completo na biblioteca...');
-      state.books.push({
+      // Reload before committing to avoid overwriting other edits during a long import.
+      const latest = await window.HGCloud.load();
+      if(!latest?.collections?.some(c=>c.id===collectionId))
+        throw new Error('Não foi possível conferir a coleção. O progresso foi mantido para retomar.');
+      if(latest.books.some(b=>b.id===importId))
+        throw new Error('Este livro já existe na biblioteca. Atualize a página antes de tentar de novo.');
+      pages.sort((a,b)=>a.order-b.order);
+      if(pages.length!==doc.numPages) throw new Error('Faltam páginas; o progresso foi mantido para retomar.');
+      latest.books.push({
         id:importId, collectionId,
         title:title.slice(0,180),
         subtitle:'PDF importado · '+pages.length+' páginas',
@@ -157,10 +186,11 @@
         cover:pages[0]?.image || '',
         status:'Em desenvolvimento', volume:'01', featured:false
       });
-      state.pages.push(...pages);
-      await window.HGCloud.save(state);
+      latest.pages.push(...pages);
+      await window.HGCloud.save(latest);
       success = true;
       window.HGCloud.completePdfImport(importId);
+      try { localStorage.removeItem(checkpointKey); } catch {}
       progress(1,'Livro publicado! '+pages.length+' páginas disponíveis.');
       notify('Livro '+title+' importado com '+pages.length+' páginas!');
       modal.hidden = true;
@@ -171,13 +201,10 @@
       notify(error.message || 'Falha ao importar o PDF.',true);
     } finally {
       if(doc) try { await doc.destroy(); } catch(error) { console.warn(error); }
-      if(importId && !success) {
-        try {
-          progress(0,'Limpando páginas incompletas da nuvem...');
-          await window.HGCloud.cleanupPdfImport(importId);
-          progress(0,cancel?'Importação cancelada, sem alterar o acervo.':'Importação falhou. O acervo anterior foi preservado.');
-        } catch(error) { console.warn('Não foi possível limpar páginas temporárias',error); }
-      }
+      else if(loadTask) try { await loadTask.destroy(); } catch(error) { console.warn(error); }
+      if(fileURL) URL.revokeObjectURL(fileURL);
+      // Keep checkpoints and uploaded pages when interrupted. Retrying the same PDF resumes.
+      if(importId && !success) progress(0,'Interrompido. O progresso foi preservado para retomar com o mesmo PDF.');
       working = false;
       if(button) button.disabled = false;
     }
@@ -212,12 +239,14 @@
     if(event.target?.id !== 'hgb-file' || $('#hgb-modal')?.dataset.mode !== 'pdf') return;
     const file = event.target.files?.[0];
     if(file) {
-      progress(0, file.size > MAX_PDF_BYTES
-        ? 'Arquivo de '+(file.size/1048576).toFixed(1)+' MB excede o limite de 250 MB.'
-        : 'PDF selecionado: '+(file.size/1048576).toFixed(1)+' MB. Pronto para importar.');
+      setTimeout(() => progress(0, file.size > MAX_PDF_BYTES
+        ? 'Arquivo de '+(file.size/1048576).toFixed(1)+' MB excede o limite de 600 MB.'
+        : 'PDF selecionado: '+(file.size/1048576).toFixed(1)+' MB. Pronto para importar.'),0);
     }
   },true);
 
+  // The legacy modal is created lazily after the page has loaded.
+  document.addEventListener('click',()=>setTimeout(updateModalHelp,0),true);
   if(document.readyState === 'loading')
     document.addEventListener('DOMContentLoaded',updateModalHelp,{once:true});
   else updateModalHelp();
