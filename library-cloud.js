@@ -152,5 +152,5 @@
   }
   function completePdfImport(importId) {pendingPdfUploads.delete(importId);}
   async function logout(){if(client)await client.auth.signOut(); authorized=false;notify('Modo de leitura');}
-  window.HGCloud={load,login,save,logout,isAuthorized,verify,uploadPdfPage,cleanupPdfImport,completePdfImport};
+  window.HGCloud={load,login,save,logout,isAuthorized,verify,uploadPdfPage,cleanupPdfImport,completePdfImport,client:api};
 })();
