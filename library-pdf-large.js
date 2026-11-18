@@ -5,6 +5,8 @@
   'use strict';
   const MAX_PDF_BYTES = 600 * 1024 * 1024;
   const MAX_PDF_PAGES = 1000;
+  const MAX_COVER_BYTES = 20 * 1024 * 1024;
+  let coverPreviewURL = null;
   const $ = selector => document.querySelector(selector);
   let working = false;
   let cancel = false;
@@ -30,7 +32,24 @@
   }
   function updateModalHelp() {
     const modal = $('#hgb-modal');
-    if(!modal) return;
+    if(!modal || modal.dataset.mode !== 'pdf') return;
+    const form = $('#hgb-import-form');
+    const pdfInput = $('#hgb-file');
+    if(form && pdfInput && !$('#hgb-cover-row')) {
+      const row = document.createElement('label');
+      row.id = 'hgb-cover-row';
+      row.style.cssText = 'display:block;margin-top:14px';
+      row.innerHTML = '<span style="display:block;margin-bottom:8px">CAPA DO LIVRO (OPCIONAL)</span>' +
+        '<input id="hgb-cover-file" type="file" accept="image/png,image/jpeg,image/webp" ' +
+        'style="width:100%;max-width:100%" aria-describedby="hgb-cover-help" />' +
+        '<small id="hgb-cover-help" style="display:block;margin-top:6px;color:#b6c4bb;line-height:1.5">' +
+        'Selecione PNG, JPG ou WebP de até 20 MB. Se não escolher, a primeira página do PDF será usada como capa.</small>' +
+        '<img id="hgb-cover-preview" alt="Prévia da capa escolhida" hidden ' +
+        'style="display:none;width:116px;max-height:165px;object-fit:contain;margin-top:12px;border:1px solid #8a9e91;background:#071817;padding:4px" />';
+      const line = pdfInput.closest('label');
+      if(line && line.parentElement === form) line.insertAdjacentElement('afterend',row);
+      else form.appendChild(row);
+    }
     const help = modal.querySelector('.hgb-help');
     if(help) help.textContent =
       'Aceita PDFs de até 600 MB e 1.000 páginas. Cada folha é convertida e enviada separadamente ao acervo online. Mantenha esta aba aberta até concluir.';
@@ -63,6 +82,39 @@
       }, 'image/webp', 0.88);
     });
   }
+  async function selectedCoverDataURL() {
+    const file = $('#hgb-cover-file')?.files?.[0];
+    if(!file) return null;
+    if(!['image/png','image/jpeg','image/webp'].includes(file.type))
+      throw new Error('Capa inválida. Use PNG, JPG ou WebP.');
+    if(file.size > MAX_COVER_BYTES) throw new Error('A capa deve ter até 20 MB.');
+    const url = URL.createObjectURL(file);
+    let img;
+    try {
+      img = await new Promise((resolve,reject)=>{
+        const element = new Image();
+        element.onload=()=>resolve(element);
+        element.onerror=()=>reject(new Error('Não foi possível abrir a imagem da capa.'));
+        element.src=url;
+      });
+      if(!img.naturalWidth || !img.naturalHeight || img.naturalWidth*img.naturalHeight>80000000)
+        throw new Error('A resolução da capa é excessivamente alta.');
+      const scale = Math.min(1,1500/img.naturalWidth,2100/img.naturalHeight);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1,Math.round(img.naturalWidth*scale));
+      canvas.height = Math.max(1,Math.round(img.naturalHeight*scale));
+      const ctx = canvas.getContext('2d',{alpha:false});
+      if(!ctx) throw new Error('Não foi possível processar a capa.');
+      ctx.fillStyle='#fff';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      const converted=canvas.toDataURL('image/webp',0.9);
+      canvas.width=0;canvas.height=0;
+      if(!converted.startsWith('data:image/webp;base64,'))
+        throw new Error('Seu navegador não oferece conversão de capa em WebP.');
+      return converted;
+    } finally {URL.revokeObjectURL(url);}
+  }
   async function run() {
     if(working) return;
     working = true; cancel = false;
@@ -70,6 +122,7 @@
     const modal = $('#hgb-modal');
     const file = $('#hgb-file')?.files?.[0];
     if(button) button.disabled = true;
+    let customCover = null;
     let importId = null;
     let success = false;
     let doc = null;
@@ -92,6 +145,7 @@
       if(!state.collections.some(c => c.id === collectionId))
         throw new Error('A ala escolhida não foi encontrada no acervo online.');
 
+      customCover = await selectedCoverDataURL();
       const title = ($('#hgb-book-title')?.value || '').trim() ||
         file.name.replace(/\.pdf$/i,'').replace(/[_-]/g,' ');
       const pdfjs = await loadPdfJs();
@@ -183,7 +237,7 @@
         title:title.slice(0,180),
         subtitle:'PDF importado · '+pages.length+' páginas',
         description:'Livro importado em PDF para a biblioteca online.',
-        cover:pages[0]?.image || '',
+        cover:customCover || pages[0]?.image || '',
         status:'Em desenvolvimento', volume:'01', featured:false
       });
       latest.pages.push(...pages);
@@ -233,6 +287,24 @@
     event.stopImmediatePropagation();
     cancel = true;
     progress(0,'Cancelando após a página atual...');
+  },true);
+
+  document.addEventListener('change',event => {
+    if(event.target?.id !== 'hgb-cover-file') return;
+    if(coverPreviewURL) URL.revokeObjectURL(coverPreviewURL);
+    coverPreviewURL = null;
+    const image = $('#hgb-cover-preview');
+    const file=event.target.files?.[0];
+    if(!image) return;
+    image.hidden=true;image.style.display='none';image.removeAttribute('src');
+    if(!file) return;
+    if(!['image/png','image/jpeg','image/webp'].includes(file.type) || file.size>MAX_COVER_BYTES) {
+      notify('A capa deve ser PNG, JPG ou WebP de até 20 MB.',true);
+      event.target.value='';
+      return;
+    }
+    coverPreviewURL=URL.createObjectURL(file);
+    image.src=coverPreviewURL;image.hidden=false;image.style.display='block';
   },true);
 
   document.addEventListener('change',event => {
